@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Top 10 Highest Trading Volume Crypto Assets on Reku</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="dashboard-shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">IDR Market Volume Monitor</p>
+          <h1>Top 10 Highest Trading Volume Crypto Assets on Reku</h1>
+          <p class="subtitle">
+            Comparison between Reku, Indodax, and Tokocrypto IDR market volumes
+          </p>
+        </div>
+
+        <section class="refresh-panel" aria-label="Auto refresh status">
+          <div class="refresh-ring">
+            <svg viewBox="0 0 120 120" aria-hidden="true">
+              <circle class="ring-track" cx="60" cy="60" r="52"></circle>
+              <circle id="ring-progress" class="ring-progress" cx="60" cy="60" r="52"></circle>
+            </svg>
+            <strong id="countdown">60</strong>
+          </div>
+          <div>
+            <span class="refresh-label">Next refresh</span>
+            <strong id="refresh-status">Initializing</strong>
+            <small id="source-status">Preparing market data</small>
+          </div>
+        </section>
+      </header>
+
+      <section class="metric-grid" aria-label="Last refresh timestamp by exchange">
+        <article class="metric-card">
+          <span>Last Refresh Indodax</span>
+          <strong id="last-refresh-indodax">--:--:-- WIB</strong>
+        </article>
+        <article class="metric-card">
+          <span>Last Refresh Reku</span>
+          <strong id="last-refresh-reku">--:--:-- WIB</strong>
+        </article>
+        <article class="metric-card">
+          <span>Last Refresh Tokocrypto</span>
+          <strong id="last-refresh-tokocrypto">--:--:-- WIB</strong>
+        </article>
+      </section>
+
+      <section class="summary-grid" aria-label="Dashboard summary">
+        <article class="summary-card">
+          <span>Total Reku Volume</span>
+          <strong id="summary-reku-volume">0.00 b</strong>
+        </article>
+        <article class="summary-card">
+          <span>Increase</span>
+          <strong id="summary-increase">0 assets</strong>
+        </article>
+        <article class="summary-card">
+          <span>Reduce</span>
+          <strong id="summary-reduce">0 assets</strong>
+        </article>
+        <article class="summary-card">
+          <span>Maintain</span>
+          <strong id="summary-maintain">0 assets</strong>
+        </article>
+      </section>
+
+      <section class="table-card" aria-labelledby="table-title">
+        <div class="table-card__header">
+          <div>
+            <h2 id="table-title">Trading Volume Comparison</h2>
+            <p>Sorted by live Reku market volume when available</p>
+          </div>
+          <button id="manual-refresh" type="button">Refresh Now</button>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Asset</th>
+                <th scope="col">Indodax</th>
+                <th scope="col">Reku</th>
+                <th scope="col">Tokocrypto</th>
+                <th scope="col">Action</th>
+              </tr>
+            </thead>
+            <tbody id="volume-table-body"></tbody>
+          </table>
+        </div>
+
+        <footer class="table-note">
+          All values shown in billion IDR (b). Reku top 10 is based on Reku market volume.
+        </footer>
+      </section>
+    </main>
+
+    <script src="script.js"></script>
+  </body>
+</html>
