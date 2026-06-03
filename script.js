@@ -37,7 +37,6 @@ const elements = {
     tokocrypto: document.querySelector("#last-refresh-tokocrypto"),
   },
   summary: {
-    rekuVolume: document.querySelector("#summary-reku-volume"),
     increase: document.querySelector("#summary-increase"),
     reduce: document.querySelector("#summary-reduce"),
     maintain: document.querySelector("#summary-maintain"),
@@ -45,8 +44,12 @@ const elements = {
 };
 
 function calculateAction(indodax, reku, tokocrypto) {
-  if (indodax == null || reku == null || tokocrypto == null) {
+  if (indodax == null || reku == null) {
     return "Review";
+  }
+
+  if (tokocrypto == null) {
+    return calculateIndodaxOnlyAction(indodax, reku);
   }
 
   const x = indodax;
@@ -81,6 +84,12 @@ function calculateAction(indodax, reku, tokocrypto) {
 
   if (z < Math.min(x, y) - 5) return "Increase";
   if (z > Math.max(x, y) + 5) return "Reduce";
+  return "Maintain";
+}
+
+function calculateIndodaxOnlyAction(indodax, reku) {
+  if (reku < indodax - 5) return "Increase";
+  if (reku > indodax + 5) return "Reduce";
   return "Maintain";
 }
 
@@ -147,7 +156,7 @@ function renderTable(rows) {
         <tr>
           <td>
             <span class="asset-cell">
-              <span class="asset-icon" aria-hidden="true">${row.asset.slice(0, 2)}</span>
+              ${getAssetMark(row)}
               ${row.asset}
             </span>
           </td>
@@ -166,11 +175,17 @@ function renderTable(rows) {
   renderSummary(sortedRows);
 }
 
+function getAssetMark(row) {
+  if (row.logo) {
+    return `<img class="asset-logo" src="${row.logo}" alt="" loading="lazy" />`;
+  }
+
+  return `<span class="asset-icon" aria-hidden="true">${row.asset.slice(0, 2)}</span>`;
+}
+
 function renderSummary(rows) {
   const actions = rows.map((row) => calculateAction(row.indodax, row.reku, row.tokocrypto));
-  const totalReku = rows.reduce((total, row) => total + row.reku, 0);
 
-  elements.summary.rekuVolume.textContent = formatVolume(totalReku);
   elements.summary.increase.textContent = `${actions.filter((action) => action === "Increase").length} assets`;
   elements.summary.reduce.textContent = `${actions.filter((action) => action === "Reduce").length} assets`;
   elements.summary.maintain.textContent = `${actions.filter((action) => action === "Maintain").length} assets`;
@@ -310,7 +325,7 @@ async function refreshDashboard() {
         elements.lastRefresh.indodax.textContent = formatIsoTime(marketData.lastRefresh?.indodax);
         elements.lastRefresh.tokocrypto.textContent = formatIsoTime(marketData.lastRefresh?.tokocrypto);
 
-        if (hasMissingTokocrypto(currentRows)) {
+        if (hasMissingTokocrypto(currentRows) && !marketData.lastRefresh?.tokocrypto) {
           setLoading(true, "Trying Tokocrypto browser fallback");
 
           try {
@@ -326,10 +341,10 @@ async function refreshDashboard() {
         setLoading(
           false,
           hasMissingTokocrypto(currentRows)
-            ? "Live data refreshed; Tokocrypto unavailable"
+            ? "Live data refreshed; partial TC IDR pairs"
             : marketData.errors?.length
-            ? "Live data refreshed with partial exchange fallback"
-            : "Live data refreshed through treasury API"
+            ? "Live data refreshed with proxy fallback"
+            : "Live data refreshed; TC proxy active"
         );
 
         countdown = REFRESH_INTERVAL_SECONDS;

@@ -32,17 +32,17 @@ body {
 }
 
 .dashboard-shell {
-  width: min(1180px, calc(100% - 32px));
+  width: min(1040px, calc(100% - 24px));
   margin: 0 auto;
-  padding: 28px 0;
+  padding: 14px 0;
 }
 
 .hero {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 340px;
-  gap: 24px;
+  gap: 16px;
   align-items: center;
-  padding: 30px;
+  padding: 18px 22px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: var(--radius);
   background: linear-gradient(135deg, rgba(57, 21, 104, 0.98), rgba(36, 16, 57, 0.94));
@@ -61,7 +61,7 @@ body {
 }
 
 .eyebrow {
-  margin-bottom: 12px;
+  margin-bottom: 8px;
   color: #d6c3ff;
   font-size: 0.78rem;
   font-weight: 800;
@@ -77,13 +77,13 @@ h2 {
 
 h1 {
   max-width: 850px;
-  font-size: clamp(2rem, 5vw, 4.15rem);
+  font-size: clamp(2rem, 4.2vw, 3.35rem);
   line-height: 1;
 }
 
 .subtitle {
   max-width: 650px;
-  margin-top: 16px;
+  margin-top: 10px;
   color: #ddd6ef;
   line-height: 1.6;
 }
@@ -101,14 +101,14 @@ h1 {
 .refresh-panel {
   display: grid;
   grid-template-columns: 112px 1fr;
-  gap: 16px;
+  gap: 12px;
   align-items: center;
-  padding: 18px;
+  padding: 12px;
 }
 
 .refresh-ring {
   position: relative;
-  width: 112px;
+  width: 82px;
   aspect-ratio: 1;
 }
 
@@ -120,7 +120,7 @@ h1 {
 
 .refresh-ring circle {
   fill: none;
-  stroke-width: 10;
+  stroke-width: 9;
 }
 
 .ring-track {
@@ -140,7 +140,7 @@ h1 {
   inset: 0;
   display: grid;
   place-items: center;
-  font-size: 1.7rem;
+  font-size: 1.35rem;
 }
 
 .refresh-label {
@@ -151,15 +151,15 @@ h1 {
 
 #refresh-status {
   display: block;
-  margin: 6px 0;
+  margin: 4px 0;
   font-size: 1rem;
 }
 
 .metric-grid,
 .summary-grid {
   display: grid;
-  gap: 16px;
-  margin-top: 18px;
+  gap: 10px;
+  margin-top: 10px;
 }
 
 .metric-grid {
@@ -167,8 +167,8 @@ h1 {
 }
 
 .summary-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  margin-bottom: 18px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 10px;
 }
 
 .metric-card,
@@ -181,12 +181,12 @@ h1 {
 .summary-card span {
   display: block;
   margin-bottom: 10px;
-  font-size: 0.84rem;
+  font-size: 0.76rem;
 }
 
 .metric-card strong,
 .summary-card strong {
-  font-size: 1.18rem;
+  font-size: 1rem;
 }
 
 .table-card {
@@ -198,7 +198,7 @@ h1 {
   justify-content: space-between;
   gap: 18px;
   align-items: center;
-  padding: 22px;
+  padding: 14px 18px;
   border-bottom: 1px solid var(--line);
 }
 
@@ -207,12 +207,12 @@ h1 {
 }
 
 .table-card__header p {
-  margin-top: 6px;
-  font-size: 0.88rem;
+  margin-top: 4px;
+  font-size: 0.78rem;
 }
 
 button {
-  min-height: 38px;
+  min-height: 32px;
   padding: 0 16px;
   border: 1px solid rgba(122, 170, 255, 0.35);
   border-radius: 999px;
@@ -241,7 +241,7 @@ table {
 
 th,
 td {
-  padding: 17px 22px;
+  padding: 11px 18px;
   text-align: right;
   border-bottom: 1px solid var(--line);
   font-variant-numeric: tabular-nums;
@@ -254,7 +254,7 @@ td:first-child {
 
 th {
   color: #c5cbdb;
-  font-size: 0.78rem;
+  font-size: 0.7rem;
   font-weight: 800;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -276,32 +276,40 @@ tbody tr:hover {
 .asset-cell {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   color: var(--text);
   font-weight: 800;
 }
 
 .asset-icon {
   display: grid;
-  width: 34px;
+  width: 28px;
   aspect-ratio: 1;
   place-items: center;
   border-radius: 50%;
   background: linear-gradient(135deg, var(--purple-2), #5267ff);
   color: #fff;
-  font-size: 0.72rem;
+  font-size: 0.64rem;
   box-shadow: 0 8px 22px rgba(82, 103, 255, 0.18);
+}
+
+.asset-logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .badge {
   display: inline-flex;
   min-width: 96px;
-  min-height: 30px;
+  min-height: 24px;
   align-items: center;
   justify-content: center;
   padding: 0 12px;
   border-radius: 999px;
-  font-size: 0.8rem;
+  font-size: 0.7rem;
   font-weight: 800;
 }
 
@@ -330,8 +338,8 @@ tbody tr:hover {
 }
 
 .table-note {
-  padding: 16px 22px;
-  font-size: 0.86rem;
+  padding: 10px 18px;
+  font-size: 0.74rem;
 }
 
 .fade-refresh {

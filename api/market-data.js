@@ -48,6 +48,7 @@ async function getRekuTopRows() {
       .map((item) => ({
         asset: item.cd,
         name: item.n,
+        logo: item.logo || item.logo_svg || "",
         reku: toBillions(item.v),
         rekuRaw: Number(item.v),
       }))
