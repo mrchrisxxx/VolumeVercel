@@ -1,8 +1,6 @@
 const REKU_MARKET_URL = "https://api.reku.id/v3/market";
 const INDODAX_TICKERS_URL = "https://indodax.com/api/tickers";
-const TOKOCRYPTO_TICKERS_URL = "https://www.tokocrypto.site/api/v3/ticker/24hr";
-const TOKOCRYPTO_TRADE_PAGE_URL = "https://www.tokocrypto.com/en/trade/BTC_IDR";
-const TOKOCRYPTO_PROXY_URL = process.env.TOKOCRYPTO_PROXY_URL || "";
+const TOKOCRYPTO_TRADING_PAIRS_URL = "https://www.tokocrypto.com/v1/market/trading-pairs";
 
 const REQUEST_TIMEOUT_MS = 12000;
 
@@ -75,8 +73,6 @@ async function getIndodaxVolumes(assets) {
   };
 }
 
-const TOKOCRYPTO_TRADING_PAIRS_URL = "https://www.tokocrypto.com/v1/market/trading-pairs";
-
 async function getTokocryptoVolumes(assets) {
   const data = await fetchWithTimeout(
     `${TOKOCRYPTO_TRADING_PAIRS_URL}?quoteAsset=IDR&offset=0&limit=500`
@@ -100,69 +96,6 @@ async function getTokocryptoVolumes(assets) {
       assets.map((asset) => [asset, volumeMap[asset] ?? null])
     ),
     errors: [],
-  };
-}
-
-  if (missingAssets.length) {
-    const webFallback = await getTokocryptoWebFallbackVolumes(missingAssets);
-
-    for (const asset of missingAssets) {
-      apiVolumes[asset] = webFallback.volumes[asset] ?? apiVolumes[asset];
-    }
-  }
-
-  const hasAnyVolume = Object.values(apiVolumes).some((value) => value != null);
-
-  if (!hasAnyVolume) {
-    throw new Error("Tokocrypto volume unavailable from ticker API and trade page fallback");
-  }
-
-  return {
-    refreshedAt: latestCloseTime > 0
-      ? new Date(latestCloseTime).toISOString()
-      : nowIso(),
-    volumes: apiVolumes,
-  };
-}
-
-async function getTokocryptoProxyVolumes(assets) {
-  const url = new URL(TOKOCRYPTO_PROXY_URL);
-  url.search = "?assets=" + assets.join(",");
-  const data = await fetchWithTimeout(url.toString());
-  const volumes = data?.volumes || {};
-
-  return {
-    source: data?.source || "tokocrypto-proxy",
-    refreshedAt: data?.generatedAt || nowIso(),
-    volumes: Object.fromEntries(
-      assets.map((asset) => {
-        const value = volumes[asset] ?? volumes[asset.toUpperCase()] ?? null;
-        return [asset, value == null ? null : Number(value)];
-      })
-    ),
-    errors: data?.errors || [],
-  };
-}
-
-async function getTokocryptoWebFallbackVolumes(assets) {
-  const html = await fetchWithTimeout(TOKOCRYPTO_TRADE_PAGE_URL, "text");
-
-  return {
-    refreshedAt: nowIso(),
-    volumes: Object.fromEntries(
-      assets.map((asset) => {
-        const symbol = `${asset}IDR`;
-        const symbolPattern = new RegExp(`"${symbol}"\\s*:\\s*\\{([^{}]+)\\}`);
-        const symbolMatch = html.match(symbolPattern);
-
-        if (!symbolMatch) {
-          return [asset, null];
-        }
-
-        const quoteVolumeMatch = symbolMatch[1].match(/"quoteVolume"\s*:\s*"([^"]+)"/);
-        return [asset, quoteVolumeMatch ? toBillions(quoteVolumeMatch[1]) : null];
-      })
-    ),
   };
 }
 
@@ -210,13 +143,12 @@ module.exports = async function handler(request, response) {
     }
 
     const indodax = indodaxResult.status === "fulfilled" ? indodaxResult.value : { volumes: {}, refreshedAt: null };
-    const tokocrypto =
-      tokocryptoResult.status === "fulfilled" ? tokocryptoResult.value : { volumes: {}, refreshedAt: null };
+    const tokocrypto = tokocryptoResult.status === "fulfilled" ? tokocryptoResult.value : { volumes: {}, refreshedAt: null };
 
     response.status(200).json({
       source: "live",
       rekuSource: rekuResult.source,
-      tokocryptoSource: tokocrypto.source || (TOKOCRYPTO_PROXY_URL ? "tokocrypto-proxy" : "tokocrypto-direct"),
+      tokocryptoSource: tokocrypto.source || "tokocrypto-live",
       generatedAt: nowIso(),
       lastRefresh: {
         reku: nowIso(),
