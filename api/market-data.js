@@ -75,32 +75,33 @@ async function getIndodaxVolumes(assets) {
   };
 }
 
+const TOKOCRYPTO_TRADING_PAIRS_URL = "https://www.tokocrypto.com/v1/market/trading-pairs";
+
 async function getTokocryptoVolumes(assets) {
-  if (TOKOCRYPTO_PROXY_URL) {
-    return getTokocryptoProxyVolumes(assets);
+  const data = await fetchWithTimeout(
+    `${TOKOCRYPTO_TRADING_PAIRS_URL}?quoteAsset=IDR&offset=0&limit=500`
+  );
+
+  const pairs = data?.data?.list || [];
+  const volumeMap = {};
+
+  for (const pair of pairs) {
+    const base = String(pair.baseAsset || "").toUpperCase();
+    const quoteVol = Number(pair.quoteVolume || 0);
+    if (base && quoteVol > 0) {
+      volumeMap[base] = quoteVol / 1_000_000_000;
+    }
   }
 
-  const rows = await Promise.all(
-    assets.map(async (asset) => {
-      try {
-        return await fetchWithTimeout(`${TOKOCRYPTO_TICKERS_URL}?symbol=${encodeURIComponent(`${asset}IDR`)}`);
-      } catch (error) {
-        return null;
-      }
-    })
-  );
-
-  const validRows = rows.filter(Boolean);
-  const bySymbol = new Map(validRows.map((item) => [item.symbol, item]));
-  const relevantTickers = assets.map((asset) => bySymbol.get(`${asset}IDR`)).filter(Boolean);
-  const latestCloseTime = Math.max(...relevantTickers.map((item) => Number(item.closeTime || 0)));
-  const apiVolumes = Object.fromEntries(
-    assets.map((asset) => {
-      const ticker = bySymbol.get(`${asset}IDR`);
-      return [asset, ticker ? toBillions(ticker.quoteVolume) : null];
-    })
-  );
-  const missingAssets = assets.filter((asset) => apiVolumes[asset] == null);
+  return {
+    source: "tokocrypto-live",
+    refreshedAt: nowIso(),
+    volumes: Object.fromEntries(
+      assets.map((asset) => [asset, volumeMap[asset] ?? null])
+    ),
+    errors: [],
+  };
+}
 
   if (missingAssets.length) {
     const webFallback = await getTokocryptoWebFallbackVolumes(missingAssets);
