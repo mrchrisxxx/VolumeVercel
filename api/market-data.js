@@ -126,7 +126,7 @@ async function getTokocryptoVolumes(assets) {
 
 async function getTokocryptoProxyVolumes(assets) {
   const url = new URL(TOKOCRYPTO_PROXY_URL);
-  url.searchParams.set("assets", assets.join(","));
+  url.search = "?assets=" + assets.join(",");
   const data = await fetchWithTimeout(url.toString());
   const volumes = data?.volumes || {};
 
