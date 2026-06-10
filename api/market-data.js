@@ -1,170 +1,86 @@
-const REKU_MARKET_URL = "https://api.reku.id/v3/market";
-const INDODAX_TICKERS_URL = "https://indodax.com/api/tickers";
-const TOKOCRYPTO_TRADING_PAIRS_URL = "https://www.tokocrypto.com/v1/market/trading-pairs";
-
-const REQUEST_TIMEOUT_MS = 12000;
-
-function toBillions(value) {
-  return Number(value || 0) / 1_000_000_000;
-}
-
-function nowIso() {
-  return new Date().toISOString();
-}
-
-async function fetchWithTimeout(url, responseType = "json") {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+export default async function handler(req, res) {
+  // Tambahkan header CORS dan Cache agar respons lebih cepat
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 's-maxage=30, stale-while-revalidate');
 
   try {
-    const response = await fetch(url, {
-      cache: "no-store",
-      headers: {
-        "user-agent": "Reku Treasury Volume Dashboard/1.0",
-      },
-      signal: controller.signal,
-    });
-
-    if (!response.ok) {
-      throw new Error(`${url} returned ${response.status}`);
-    }
-
-    return responseType === "text" ? response.text() : response.json();
-  } finally {
-    clearTimeout(timeoutId);
-  }
-}
-
-async function getRekuTopRows() {
-  const data = await fetchWithTimeout(REKU_MARKET_URL);
-  const rows = Array.isArray(data) ? data : data?.value || [];
-
-  return {
-    source: "reku-v3-market",
-    rows: rows
-      .filter((item) => item?.cd && Number(item?.v) > 0)
-      .map((item) => ({
-        asset: item.cd,
-        name: item.n,
-        logo: item.logo || item.logo_svg || "",
-        reku: toBillions(item.v),
-        rekuRaw: Number(item.v),
-      }))
-      .sort((a, b) => b.rekuRaw - a.rekuRaw)
-      .slice(0, 10),
-  };
-}
-
-async function getIndodaxVolumes(assets) {
-  const data = await fetchWithTimeout(INDODAX_TICKERS_URL);
-  const tickers = data?.tickers || {};
-  const firstTicker = Object.values(tickers)[0];
-
-  return {
-    refreshedAt: firstTicker?.server_time
-      ? new Date(Number(firstTicker.server_time) * 1000).toISOString()
-      : nowIso(),
-    volumes: Object.fromEntries(
-      assets.map((asset) => {
-        const ticker = tickers[`${asset.toLowerCase()}_idr`];
-        return [asset, toBillions(ticker?.vol_idr)];
-      })
-    ),
-  };
-}
-
-async function getTokocryptoVolumes(assets) {
-  const data = await fetchWithTimeout(
-    `${TOKOCRYPTO_TRADING_PAIRS_URL}?quoteAsset=IDR&offset=0&limit=500`
-  );
-
-  const pairs = data?.data?.list || [];
-  const volumeMap = {};
-
-  for (const pair of pairs) {
-    const base = String(pair.baseAsset || "").toUpperCase();
-    const quoteVol = Number(pair.quoteVolume || 0);
-    if (base && quoteVol > 0) {
-      volumeMap[base] = quoteVol / 1_000_000_000;
-    }
-  }
-
-  return {
-    source: "tokocrypto-live",
-    refreshedAt: nowIso(),
-    volumes: Object.fromEntries(
-      assets.map((asset) => [asset, volumeMap[asset] ?? null])
-    ),
-    errors: [],
-  };
-}
-
-function mergeRows(rekuRows, indodaxVolumes, tokocryptoVolumes) {
-  return rekuRows.map(({ rekuRaw, ...row }) => ({
-    ...row,
-    indodax: indodaxVolumes[row.asset] ?? null,
-    tokocrypto: tokocryptoVolumes[row.asset] ?? null,
-  }));
-}
-
-module.exports = async function handler(request, response) {
-  response.setHeader("Cache-Control", "no-store");
-  response.setHeader("Access-Control-Allow-Origin", "*");
-  response.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-
-  if (request.method === "OPTIONS") {
-    response.status(204).end();
-    return;
-  }
-
-  if (request.method !== "GET") {
-    response.status(405).json({ error: "Method not allowed" });
-    return;
-  }
-
-  const errors = [];
-
-  try {
-    const rekuResult = await getRekuTopRows();
-    const rekuRows = rekuResult.rows;
-    const assets = rekuRows.map((row) => row.asset);
-
-    const [indodaxResult, tokocryptoResult] = await Promise.allSettled([
-      getIndodaxVolumes(assets),
-      getTokocryptoVolumes(assets),
+    // 1. Fetch data dari Reku (v3 API) dan Indodax secara paralel untuk mempercepat waktu respons
+    const [rekuRes, indodaxRes] = await Promise.all([
+      fetch('https://api.reku.id/v3/market').catch(() => null),
+      fetch('https://indodax.com/api/tickers').catch(() => null)
     ]);
 
-    if (indodaxResult.status === "rejected") {
-      errors.push({ exchange: "indodax", message: indodaxResult.reason.message });
+    // 2. Ekstrak data Reku
+    let rekuData = [];
+    if (rekuRes && rekuRes.ok) {
+      const json = await rekuRes.json();
+      // Antisipasi struktur JSON Reku (bisa array langsung, atau di dalam object 'data'/'markets')
+      rekuData = Array.isArray(json) ? json : (json.data || json.markets || []);
     }
 
-    if (tokocryptoResult.status === "rejected") {
-      errors.push({ exchange: "tokocrypto", message: tokocryptoResult.reason.message });
+    // 3. Ekstrak data Indodax
+    let indodaxData = {};
+    let indodaxServerTime = null;
+    if (indodaxRes && indodaxRes.ok) {
+      const json = await indodaxRes.json();
+      indodaxData = json.tickers || {};
+      
+      // Ambil timestamp dari salah satu aset Indodax
+      const firstTicker = Object.values(indodaxData)[0];
+      if (firstTicker && firstTicker.server_time) {
+        indodaxServerTime = firstTicker.server_time;
+      }
     }
 
-    const indodax = indodaxResult.status === "fulfilled" ? indodaxResult.value : { volumes: {}, refreshedAt: null };
-    const tokocrypto = tokocryptoResult.status === "fulfilled" ? tokocryptoResult.value : { volumes: {}, refreshedAt: null };
+    // Fungsi bantu untuk mengubah volume ke miliar (Billions)
+    const toBillions = (val) => Number(val || 0) / 1_000_000_000;
 
-    response.status(200).json({
-      source: "live",
-      rekuSource: rekuResult.source,
-      tokocryptoSource: tokocrypto.source || "tokocrypto-live",
-      generatedAt: nowIso(),
-      lastRefresh: {
-        reku: nowIso(),
-        indodax: indodax.refreshedAt,
-        tokocrypto: tokocrypto.refreshedAt,
-      },
-      rows: mergeRows(rekuRows, indodax.volumes, tokocrypto.volumes),
-      errors: [...errors, ...(tokocrypto.errors || [])],
+    // 4. Parsing dan Sorting Reku (Ambil Top 10)
+    let rows = rekuData.map(item => {
+      // Menyesuaikan dengan response keys yang mungkin dari Reku
+      const asset = (item.code || item.base_currency || item.symbol || "").toUpperCase();
+      const name = item.name || asset;
+      const volume = item.volume || (item.price ? item.price.volume : 0);
+      
+      return { 
+        asset, 
+        name, 
+        reku: toBillions(volume) 
+      };
+    })
+    .filter(item => item.asset && item.reku > 0)
+    .sort((a, b) => b.reku - a.reku) // Urutkan dari volume tertinggi ke terendah
+    .slice(0, 10); // Ambil hanya Top 10
+
+    // 5. Gabungkan volume Indodax ke dalam Top 10 Reku tersebut
+    rows = rows.map(row => {
+      const tickerKey = `${row.asset.toLowerCase()}_idr`; // Contoh: "btc_idr"
+      const indodaxTicker = indodaxData[tickerKey];
+      
+      return {
+        ...row,
+        indodax: indodaxTicker ? toBillions(indodaxTicker.vol_idr) : 0,
+        tokocrypto: 0 // Sengaja di-set 0 dari backend, nanti nilainya akan DITIMPA oleh script.js di browser
+      };
     });
+
+    // 6. Siapkan timestamp untuk referensi "Last Refresh"
+    const now = new Date().toISOString();
+
+    // 7. Kembalikan response JSON ke frontend (script.js)
+    return res.status(200).json({
+      rows: rows,
+      lastRefresh: {
+        reku: now,
+        indodax: indodaxServerTime ? new Date(indodaxServerTime * 1000).toISOString() : now
+      }
+    });
+
   } catch (error) {
-    response.status(502).json({
-      source: "error",
-      generatedAt: nowIso(),
-      error: error.message,
-      rows: [],
-      errors,
+    console.error("Vercel Backend Error:", error);
+    return res.status(500).json({ 
+      error: "Failed to fetch market data", 
+      message: error.message 
     });
   }
-};
+}
