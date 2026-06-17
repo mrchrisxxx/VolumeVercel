@@ -3,8 +3,7 @@ const RING_CIRCUMFERENCE = 326.73;
 
 const REKU_MARKETS_URL = "https://reku.id/markets";
 const INDODAX_TICKERS_URL = "https://indodax.com/api/tickers";
-// Menggunakan endpoint v1 yang works dan langsung ambil semua data sekaligus
-const TOKOCRYPTO_DIRECT_URL = "https://www.tokocrypto.com/v1/market/trading-pairs?quoteAsset=IDR&offset=0&limit=500";
+const TOKOCRYPTO_TICKERS_URL = "https://www.tokocrypto.site/api/v3/ticker/24hr";
 const LIVE_MARKET_DATA_URL = "/api/market-data";
 
 const fallbackRows = [
@@ -45,8 +44,13 @@ const elements = {
 };
 
 function calculateAction(indodax, reku, tokocrypto) {
-  if (indodax == null || reku == null) return "Review";
-  if (tokocrypto == null) return calculateIndodaxOnlyAction(indodax, reku);
+  if (indodax == null || reku == null) {
+    return "Review";
+  }
+
+  if (tokocrypto == null) {
+    return calculateIndodaxOnlyAction(indodax, reku);
+  }
 
   const x = indodax;
   const y = tokocrypto;
@@ -56,11 +60,13 @@ function calculateAction(indodax, reku, tokocrypto) {
 
   const betaPos = 0.7 + (1 - 0.7) * (1 / (1 + Math.exp(-0.015 * (d - 350))));
   const alphaPos = 0.007 * (1 - 1 / (1 + Math.exp(-0.015 * (d - 350))));
+
   const betaNeg = 0.007 * (1 - 1 / (1 + Math.exp(0.1 * (d + 150))));
   const alphaNeg = 0.7 + (0.9 - 0.7) * (1 / (1 + Math.exp(0.1 * (d + 150))));
 
   const upperPos = x - betaPos * absd;
   const lowerPos = y - alphaPos * absd;
+
   const upperNeg = y - alphaNeg * absd;
   const lowerNeg = x + betaNeg * absd;
 
@@ -88,7 +94,10 @@ function calculateIndodaxOnlyAction(indodax, reku) {
 }
 
 function formatVolume(value) {
-  if (value == null || !Number.isFinite(Number(value))) return "N/A";
+  if (value == null || !Number.isFinite(Number(value))) {
+    return "N/A";
+  }
+
   return `${Number(value || 0).toFixed(2)} b`;
 }
 
@@ -104,6 +113,10 @@ function formatTime(date = new Date()) {
 
 function formatServerTime(seconds) {
   return seconds ? formatTime(new Date(Number(seconds) * 1000)) : formatTime();
+}
+
+function formatServerTimeMs(milliseconds) {
+  return milliseconds ? formatTime(new Date(Number(milliseconds))) : formatTime();
 }
 
 function formatIsoTime(isoString) {
@@ -123,7 +136,8 @@ function setLoading(isLoading, message = "") {
 
 function renderCountdown() {
   elements.countdown.textContent = countdown;
-  elements.ring.style.strokeDashoffset = RING_CIRCUMFERENCE * (1 - countdown / REFRESH_INTERVAL_SECONDS);
+  elements.ring.style.strokeDashoffset =
+    RING_CIRCUMFERENCE * (1 - countdown / REFRESH_INTERVAL_SECONDS);
 }
 
 function getSortedRows(rows) {
@@ -165,6 +179,7 @@ function getAssetMark(row) {
   if (row.logo) {
     return `<img class="asset-logo" src="${row.logo}" alt="" loading="lazy" />`;
   }
+
   return `<span class="asset-icon" aria-hidden="true">${row.asset.slice(0, 2)}</span>`;
 }
 
@@ -234,41 +249,36 @@ async function getIndodaxVolumes(assets) {
   };
 }
 
-// FUNGSI INI DIROMBAK TOTAL: Mengambil data TC langsung dari Client-Side (Browser)
 async function getTokocryptoVolumes(assets) {
-  try {
-    const response = await fetch(TOKOCRYPTO_DIRECT_URL, { cache: "no-store" });
-    
-    if (!response.ok) {
-      throw new Error(`Tokocrypto HTTP ${response.status}`);
-    }
-
-    const data = await response.json();
-    const list = data?.data?.list || [];
-    
-    if (!list.length) {
-      throw new Error("Data array Tokocrypto kosong");
-    }
-
-    // Buat map (dictionary) agar pencarian aset lebih cepat
-    const tcVolumesMap = {};
-    list.forEach(item => {
-      // Ambil Base Asset (contoh: dari "BTCIDR" jadi "BTC")
-      if (item.baseAsset && item.quoteVolume) {
-        tcVolumesMap[item.baseAsset.toUpperCase()] = toBillions(item.quoteVolume);
+  const rows = await Promise.all(
+    assets.map(async (asset) => {
+      try {
+        return await fetchJson(`${TOKOCRYPTO_TICKERS_URL}?symbol=${encodeURIComponent(`${asset}IDR`)}`);
+      } catch (error) {
+        return null;
       }
-    });
+    })
+  );
 
-    return {
-      refreshedAt: formatTime(), // API ini tidak menyertakan timestamp per pasangan, gunakan waktu lokal
-      volumes: Object.fromEntries(
-        assets.map((asset) => [asset, tcVolumesMap[asset.toUpperCase()] ?? null])
-      ),
-    };
-  } catch (error) {
-    console.warn("Client-side Tokocrypto fetch failed:", error);
-    throw error;
+  const validRows = rows.filter(Boolean);
+
+  if (!validRows.length) {
+    throw new Error("Tokocrypto ticker requests failed for all Reku top assets");
   }
+
+  const bySymbol = new Map(validRows.map((item) => [item.symbol, item]));
+  const relevantTickers = assets.map((asset) => bySymbol.get(`${asset}IDR`)).filter(Boolean);
+  const latestCloseTime = Math.max(...relevantTickers.map((item) => Number(item.closeTime || 0)));
+
+  return {
+    refreshedAt: formatServerTimeMs(latestCloseTime),
+    volumes: Object.fromEntries(
+      assets.map((asset) => {
+        const ticker = bySymbol.get(`${asset}IDR`);
+        return [asset, ticker ? toBillions(ticker.quoteVolume) : null];
+      })
+    ),
+  };
 }
 
 function mergeRows(rekuRows, indodaxVolumes, tokocryptoVolumes) {
@@ -277,6 +287,10 @@ function mergeRows(rekuRows, indodaxVolumes, tokocryptoVolumes) {
     indodax: indodaxVolumes[row.asset] ?? 0,
     tokocrypto: tokocryptoVolumes[row.asset] ?? 0,
   }));
+}
+
+function hasMissingTokocrypto(rows) {
+  return rows.some((row) => row.tokocrypto == null);
 }
 
 function mergeTokocryptoFallback(rows, tokocryptoVolumes) {
@@ -296,45 +310,51 @@ async function tryBrowserTokocryptoFallback(rows) {
   };
 }
 
-// FUNGSI INI DIPERBARUI: Agar selalu memprioritaskan bypass Tokocrypto lewat Client-side
 async function refreshDashboard() {
-  setLoading(true, "Fetching exchange data...");
+  setLoading(true, "Fetching exchange data");
 
   try {
     try {
-      // Ambil data Reku dan Indodax dari Vercel
       const marketData = await getLiveMarketData();
 
       if (Array.isArray(marketData.rows) && marketData.rows.length) {
         currentRows = marketData.rows;
-        
-        // Update tabel dengan data awal dari Reku dan Indodax
         renderTable(currentRows);
+
         elements.lastRefresh.reku.textContent = formatIsoTime(marketData.lastRefresh?.reku);
         elements.lastRefresh.indodax.textContent = formatIsoTime(marketData.lastRefresh?.indodax);
-        
-        // Mulai Bypass Tokocrypto via Browser Client
-        setLoading(true, "Fetching Tokocrypto via Client-Side...");
-        try {
-          const tokocryptoFallback = await tryBrowserTokocryptoFallback(currentRows);
-          currentRows = tokocryptoFallback.rows;
-          renderTable(currentRows); // Update tabel lagi jika data TC sudah masuk
-          elements.lastRefresh.tokocrypto.textContent = tokocryptoFallback.refreshedAt;
-          setLoading(false, "Live data refreshed (Bypassed TC)");
-        } catch (error) {
-          elements.lastRefresh.tokocrypto.textContent = "Unavailable";
-          setLoading(false, "Live data refreshed; Tokocrypto blocked");
+        elements.lastRefresh.tokocrypto.textContent = formatIsoTime(marketData.lastRefresh?.tokocrypto);
+
+        if (hasMissingTokocrypto(currentRows) && !marketData.lastRefresh?.tokocrypto) {
+          setLoading(true, "Trying Tokocrypto browser fallback");
+
+          try {
+            const tokocryptoFallback = await tryBrowserTokocryptoFallback(currentRows);
+            currentRows = tokocryptoFallback.rows;
+            renderTable(currentRows);
+            elements.lastRefresh.tokocrypto.textContent = tokocryptoFallback.refreshedAt;
+          } catch (error) {
+            elements.lastRefresh.tokocrypto.textContent = "Unavailable";
+          }
         }
+
+        setLoading(
+          false,
+          hasMissingTokocrypto(currentRows)
+            ? "Live data refreshed; partial TC IDR pairs"
+            : marketData.errors?.length
+            ? "Live data refreshed with proxy fallback"
+            : "Live data refreshed; TC proxy active"
+        );
 
         countdown = REFRESH_INTERVAL_SECONDS;
         renderCountdown();
         return;
       }
     } catch (error) {
-      // Lanjut ke fallback scraping murni via browser jika backend vercel down
+      // Continue with direct browser fetch fallback for local file previews.
     }
 
-    // --- Fallback murni via Browser (Jika Vercel down) ---
     let rekuRows = getSortedRows(currentRows).map(({ asset, name, reku }) => ({ asset, name, reku }));
     let rekuWasLive = false;
 
@@ -354,8 +374,10 @@ async function refreshDashboard() {
       getTokocryptoVolumes(assets),
     ]);
 
-    const indodaxVolumes = indodaxResult.status === "fulfilled" ? indodaxResult.value.volumes : Object.fromEntries(currentRows.map((row) => [row.asset, row.indodax]));
-    const tokocryptoVolumes = tokocryptoResult.status === "fulfilled" ? tokocryptoResult.value.volumes : Object.fromEntries(currentRows.map((row) => [row.asset, row.tokocrypto]));
+    const indodaxVolumes =
+      indodaxResult.status === "fulfilled" ? indodaxResult.value.volumes : Object.fromEntries(currentRows.map((row) => [row.asset, row.indodax]));
+    const tokocryptoVolumes =
+      tokocryptoResult.status === "fulfilled" ? tokocryptoResult.value.volumes : Object.fromEntries(currentRows.map((row) => [row.asset, row.tokocrypto]));
 
     if (indodaxResult.status === "fulfilled") {
       elements.lastRefresh.indodax.textContent = indodaxResult.value.refreshedAt;
@@ -370,7 +392,9 @@ async function refreshDashboard() {
 
     setLoading(
       false,
-      rekuWasLive ? "Live Reku top 10 refreshed (Direct API)" : "Using Reku snapshot; API blocked"
+      rekuWasLive
+        ? "Live Reku top 10 refreshed"
+        : "Using Reku snapshot; cross-origin live fetch may be blocked"
     );
   } catch (error) {
     renderTable(currentRows);
