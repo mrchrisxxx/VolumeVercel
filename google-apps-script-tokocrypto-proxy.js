@@ -1,4 +1,4 @@
-const TOKOCRYPTO_TICKERS_URL = "https://www.tokocrypto.site/api/v3/ticker/24hr";
+const TOKOCRYPTO_TICKERS_URL = "https://www.tokocrypto.asia/api/v3/ticker/24hr";
 
 function doGet(event) {
   const assets = String(event.parameter.assets || "")
@@ -14,29 +14,43 @@ function doGet(event) {
   const errors = [];
   let latestCloseTime = 0;
 
-  assets.forEach((asset) => {
-    try {
-      const response = UrlFetchApp.fetch(`${TOKOCRYPTO_TICKERS_URL}?symbol=${asset}IDR`, {
-        muteHttpExceptions: true,
-        headers: {
-          accept: "application/json",
-          "user-agent": "Reku Treasury Volume Dashboard/1.0",
-        },
-      });
-      const status = response.getResponseCode();
+  try {
+    const response = UrlFetchApp.fetch(TOKOCRYPTO_TICKERS_URL, {
+      muteHttpExceptions: true,
+      headers: {
+        accept: "application/json",
+        "user-agent": "Mozilla/5.0",
+      },
+    });
+    const status = response.getResponseCode();
 
-      if (status < 200 || status >= 300) {
-        throw new Error(`${asset}IDR returned ${status}`);
-      }
-
-      const ticker = JSON.parse(response.getContentText());
-      volumes[asset] = ticker.quoteVolume ? Number(ticker.quoteVolume) / 1000000000 : null;
-      latestCloseTime = Math.max(latestCloseTime, Number(ticker.closeTime || 0));
-    } catch (error) {
-      volumes[asset] = null;
-      errors.push({ asset, message: error.message });
+    if (status < 200 || status >= 300) {
+      throw new Error(`ticker list returned ${status}`);
     }
-  });
+
+    const tickers = JSON.parse(response.getContentText());
+    const bySymbol = {};
+
+    tickers.forEach((ticker) => {
+      bySymbol[String(ticker.symbol || "").toUpperCase()] = ticker;
+    });
+
+    assets.forEach((asset) => {
+      const ticker = bySymbol[`${asset}IDR`];
+      const quoteVolume = Number(ticker && ticker.quoteVolume || 0);
+      volumes[asset] = quoteVolume > 0 ? quoteVolume / 1000000000 : null;
+      latestCloseTime = Math.max(latestCloseTime, Number(ticker && ticker.closeTime || 0));
+
+      if (!ticker) {
+        errors.push({ asset, message: `${asset}IDR not found` });
+      }
+    });
+  } catch (error) {
+    assets.forEach((asset) => {
+      volumes[asset] = null;
+    });
+    errors.push({ exchange: "tokocrypto", message: error.message });
+  }
 
   return jsonResponse({
     source: "google-apps-script-tokocrypto",

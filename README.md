@@ -81,10 +81,14 @@ Use the folder beside this project:
 Deploy `worker.js` as a Cloudflare Worker, then test:
 
 ```txt
-https://your-worker.workers.dev/?assets=USDT,BTC,ETH
+https://reku-tokocrypto-proxy.mrchrisvc.workers.dev/?assets=USDT,BTC,ETH
 ```
 
-If it returns Tokocrypto volumes, set that Worker URL as `TOKOCRYPTO_PROXY_URL` in Vercel and redeploy.
+If it returns Tokocrypto volumes, set this Worker URL as `TOKOCRYPTO_PROXY_URL` in Vercel and redeploy:
+
+```txt
+https://reku-tokocrypto-proxy.mrchrisvc.workers.dev
+```
 
 ## Google Apps Script Proxy
 

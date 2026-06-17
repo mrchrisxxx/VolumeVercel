@@ -3,7 +3,9 @@ const RING_CIRCUMFERENCE = 326.73;
 
 const REKU_MARKETS_URL = "https://reku.id/markets";
 const INDODAX_TICKERS_URL = "https://indodax.com/api/tickers";
-const TOKOCRYPTO_TICKERS_URL = "https://www.tokocrypto.site/api/v3/ticker/24hr";
+const TOKOCRYPTO_TICKERS_URL = "https://www.tokocrypto.asia/api/v3/ticker/24hr";
+const TOKOCRYPTO_TRADING_PAIRS_URL = "https://www.tokocrypto.asia/v1/market/trading-pairs?quoteAsset=IDR&offset=0&limit=100";
+const TOKOCRYPTO_BROWSER_PROXY_URL = "https://reku-tokocrypto-proxy.mrchrisvc.workers.dev";
 const LIVE_MARKET_DATA_URL = "/api/market-data";
 
 const fallbackRows = [
@@ -192,13 +194,15 @@ function renderSummary(rows) {
 }
 
 async function fetchJson(url) {
-  const response = await fetch(`${url}?t=${Date.now()}`, { cache: "no-store" });
+  const separator = url.includes("?") ? "&" : "?";
+  const response = await fetch(`${url}${separator}t=${Date.now()}`, { cache: "no-store" });
   if (!response.ok) throw new Error(`Request failed: ${response.status}`);
   return response.json();
 }
 
 async function fetchText(url) {
-  const response = await fetch(`${url}?t=${Date.now()}`, { cache: "no-store" });
+  const separator = url.includes("?") ? "&" : "?";
+  const response = await fetch(`${url}${separator}t=${Date.now()}`, { cache: "no-store" });
   if (!response.ok) throw new Error(`Request failed: ${response.status}`);
   return response.text();
 }
@@ -281,6 +285,91 @@ async function getTokocryptoVolumes(assets) {
   };
 }
 
+async function getTokocryptoProxyVolumes(assets) {
+  const url = new URL(TOKOCRYPTO_BROWSER_PROXY_URL);
+  url.searchParams.set("assets", assets.join(","));
+  const data = await fetchJson(url.toString());
+  const volumes = data?.volumes || {};
+
+  if (!Object.values(volumes).some((value) => value != null)) {
+    throw new Error("Tokocrypto proxy returned no live volumes");
+  }
+
+  return {
+    refreshedAt: formatIsoTime(data.generatedAt),
+    volumes: Object.fromEntries(
+      assets.map((asset) => {
+        const value = volumes[asset] ?? volumes[asset.toUpperCase()] ?? null;
+        return [asset, value == null ? null : Number(value)];
+      })
+    ),
+  };
+}
+
+async function getTokocryptoTradingPairsVolumes(assets) {
+  const data = await fetchJson(TOKOCRYPTO_TRADING_PAIRS_URL);
+  const rows = findFirstArray(data);
+  const volumes = Object.fromEntries(assets.map((asset) => [asset, null]));
+
+  rows.forEach((row) => {
+    const symbol = String(row.symbol || row.pair || row.market || row.tradingPair || "")
+      .toUpperCase()
+      .replace(/[_/-]/g, "");
+    const baseAsset = String(row.baseAsset || row.base || row.baseCurrency || "").toUpperCase();
+    const quoteAsset = String(row.quoteAsset || row.quote || row.quoteCurrency || "").toUpperCase();
+    const asset = baseAsset || (symbol.endsWith("IDR") ? symbol.slice(0, -3) : "");
+
+    if (!assets.includes(asset) || (quoteAsset && quoteAsset !== "IDR") || (symbol && !symbol.endsWith("IDR"))) {
+      return;
+    }
+
+    const quoteVolume = firstNumber(
+      row.quoteVolume,
+      row.quoteAssetVolume,
+      row.volumeQuote,
+      row.volume24hQuote,
+      row.volume24h,
+      row.amount,
+      row.turnover,
+      row.turnover24h
+    );
+
+    if (quoteVolume > 0) {
+      volumes[asset] = quoteVolume / 1_000_000_000;
+    }
+  });
+
+  if (!Object.values(volumes).some((value) => value != null)) {
+    throw new Error("Tokocrypto trading-pairs returned no usable volumes");
+  }
+
+  return {
+    refreshedAt: formatTime(),
+    volumes,
+  };
+}
+
+function findFirstArray(value) {
+  if (Array.isArray(value)) return value;
+  if (!value || typeof value !== "object") return [];
+
+  for (const key of ["data", "list", "items", "rows", "result"]) {
+    const found = findFirstArray(value[key]);
+    if (found.length) return found;
+  }
+
+  return [];
+}
+
+function firstNumber(...values) {
+  for (const value of values) {
+    const number = Number(value);
+    if (Number.isFinite(number) && number > 0) return number;
+  }
+
+  return 0;
+}
+
 function mergeRows(rekuRows, indodaxVolumes, tokocryptoVolumes) {
   return rekuRows.map((row) => ({
     ...row,
@@ -302,7 +391,13 @@ function mergeTokocryptoFallback(rows, tokocryptoVolumes) {
 
 async function tryBrowserTokocryptoFallback(rows) {
   const assets = rows.map((row) => row.asset);
-  const result = await getTokocryptoVolumes(assets);
+  let result;
+
+  try {
+    result = await getTokocryptoTradingPairsVolumes(assets);
+  } catch (error) {
+    result = await getTokocryptoProxyVolumes(assets);
+  }
 
   return {
     rows: mergeTokocryptoFallback(rows, result.volumes),

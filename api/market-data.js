@@ -1,7 +1,7 @@
 const REKU_MARKET_URL = "https://api.reku.id/v3/market";
 const INDODAX_TICKERS_URL = "https://indodax.com/api/tickers";
-const TOKOCRYPTO_TICKERS_URL = "https://www.tokocrypto.site/api/v3/ticker/24hr";
-const TOKOCRYPTO_TRADE_PAGE_URL = "https://www.tokocrypto.com/en/trade/BTC_IDR";
+const TOKOCRYPTO_TICKERS_URL = "https://www.tokocrypto.asia/api/v3/ticker/24hr";
+const TOKOCRYPTO_TRADE_PAGE_URL = "https://www.tokocrypto.asia/en/trade/BTC_IDR";
 const TOKOCRYPTO_PROXY_URL = process.env.TOKOCRYPTO_PROXY_URL || "";
 const CMC_API_KEY = process.env.CMC_API_KEY || "";
 const CMC_EXCHANGE_SLUGS = (process.env.CMC_EXCHANGE_SLUGS || process.env.CMC_EXCHANGE_SLUG || "tokocrypto,toko-crypto")
