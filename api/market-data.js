@@ -115,7 +115,15 @@ async function getTokocryptoVolumes(assets) {
   const hasAnyVolume = Object.values(volumes).some((value) => value != null);
 
   if (!hasAnyVolume) {
-    throw new Error("Tokocrypto volume unavailable from direct/proxy and CoinMarketCap fallback");
+    const detail = [...errors, ...(primaryResult?.errors || []), ...(cmcResult?.errors || [])]
+      .map((item) => item.message)
+      .filter(Boolean)
+      .join("; ");
+    throw new Error(
+      detail
+        ? `Tokocrypto volume unavailable from direct/proxy and CoinMarketCap fallback: ${detail}`
+        : "Tokocrypto volume unavailable from direct/proxy and CoinMarketCap fallback"
+    );
   }
 
   return {
