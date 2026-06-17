@@ -151,18 +151,9 @@ async function getTokocryptoVolumes(assets) {
 }
 
 async function getTokocryptoDirectVolumes(assets) {
-  const rows = await Promise.all(
-    assets.map(async (asset) => {
-      try {
-        return await fetchWithTimeout(`${TOKOCRYPTO_TICKERS_URL}?symbol=${encodeURIComponent(`${asset}IDR`)}`);
-      } catch (error) {
-        return null;
-      }
-    })
-  );
-
-  const validRows = rows.filter(Boolean);
-  const bySymbol = new Map(validRows.map((item) => [item.symbol, item]));
+  const rows = await fetchWithTimeout(TOKOCRYPTO_TICKERS_URL);
+  const validRows = Array.isArray(rows) ? rows : [];
+  const bySymbol = new Map(validRows.map((item) => [String(item.symbol || "").toUpperCase(), item]));
   const relevantTickers = assets.map((asset) => bySymbol.get(`${asset}IDR`)).filter(Boolean);
   const latestCloseTime = Math.max(...relevantTickers.map((item) => Number(item.closeTime || 0)));
   const apiVolumes = Object.fromEntries(
@@ -173,7 +164,7 @@ async function getTokocryptoDirectVolumes(assets) {
   );
   const missingAssets = assets.filter((asset) => apiVolumes[asset] == null);
 
-  if (missingAssets.length) {
+  if (missingAssets.length && relevantTickers.length === 0) {
     const webFallback = await getTokocryptoWebFallbackVolumes(missingAssets);
 
     for (const asset of missingAssets) {

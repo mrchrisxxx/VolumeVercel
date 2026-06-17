@@ -254,23 +254,14 @@ async function getIndodaxVolumes(assets) {
 }
 
 async function getTokocryptoVolumes(assets) {
-  const rows = await Promise.all(
-    assets.map(async (asset) => {
-      try {
-        return await fetchJson(`${TOKOCRYPTO_TICKERS_URL}?symbol=${encodeURIComponent(`${asset}IDR`)}`);
-      } catch (error) {
-        return null;
-      }
-    })
-  );
-
-  const validRows = rows.filter(Boolean);
+  const rows = await fetchJson(TOKOCRYPTO_TICKERS_URL);
+  const validRows = Array.isArray(rows) ? rows : [];
 
   if (!validRows.length) {
-    throw new Error("Tokocrypto ticker requests failed for all Reku top assets");
+    throw new Error("Tokocrypto ticker list returned no rows");
   }
 
-  const bySymbol = new Map(validRows.map((item) => [item.symbol, item]));
+  const bySymbol = new Map(validRows.map((item) => [String(item.symbol || "").toUpperCase(), item]));
   const relevantTickers = assets.map((asset) => bySymbol.get(`${asset}IDR`)).filter(Boolean);
   const latestCloseTime = Math.max(...relevantTickers.map((item) => Number(item.closeTime || 0)));
 
@@ -394,9 +385,13 @@ async function tryBrowserTokocryptoFallback(rows) {
   let result;
 
   try {
-    result = await getTokocryptoTradingPairsVolumes(assets);
-  } catch (error) {
-    result = await getTokocryptoProxyVolumes(assets);
+    result = await getTokocryptoVolumes(assets);
+  } catch (tickerError) {
+    try {
+      result = await getTokocryptoTradingPairsVolumes(assets);
+    } catch (pairsError) {
+      result = await getTokocryptoProxyVolumes(assets);
+    }
   }
 
   return {
