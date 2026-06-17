@@ -95,6 +95,22 @@ async function getTokocryptoVolumes(assets) {
     errors.push({ exchange: "tokocrypto", message: error.message });
   }
 
+  if (
+    TOKOCRYPTO_PROXY_URL &&
+    (!primaryResult || !Object.values(primaryResult.volumes || {}).some((value) => value != null))
+  ) {
+    try {
+      const directResult = await getTokocryptoDirectVolumes(assets);
+      primaryResult = {
+        ...directResult,
+        source: `${primaryResult?.source || "tokocrypto-proxy"}+${directResult.source}`,
+        errors: [...(primaryResult?.errors || []), ...(directResult.errors || [])],
+      };
+    } catch (error) {
+      errors.push({ exchange: "tokocrypto-direct", message: error.message });
+    }
+  }
+
   const volumes = Object.fromEntries(
     assets.map((asset) => [asset, primaryResult?.volumes?.[asset] ?? null])
   );
