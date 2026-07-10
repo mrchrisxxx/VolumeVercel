@@ -3,7 +3,7 @@ const RING_CIRCUMFERENCE = 326.73;
 
 const REKU_MARKETS_URL = "https://reku.id/markets";
 const INDODAX_TICKERS_URL = "https://indodax.com/api/tickers";
-const TOKOCRYPTO_TICKERS_URL = "https://www.tokocrypto.asia/api/v3/ticker/24hr";
+const TOKOCRYPTO_TICKERS_URL = "https://api.binance.com/api/v3/ticker/24hr";
 const TOKOCRYPTO_TRADING_PAIRS_URL = "https://www.tokocrypto.asia/v1/market/trading-pairs?quoteAsset=IDR&offset=0&limit=100";
 const TOKOCRYPTO_BROWSER_PROXY_URL = "https://reku-tokocrypto-proxy.mrchrisvc.workers.dev";
 const LIVE_MARKET_DATA_URL = "/api/market-data";
@@ -254,11 +254,19 @@ async function getIndodaxVolumes(assets) {
 }
 
 async function getTokocryptoVolumes(assets) {
-  const rows = await fetchJson(TOKOCRYPTO_TICKERS_URL);
-  const validRows = Array.isArray(rows) ? rows : [];
+  const rows = await Promise.all(
+    assets.map(async (asset) => {
+      try {
+        return await fetchJson(`${TOKOCRYPTO_TICKERS_URL}?symbol=${encodeURIComponent(`${asset}IDR`)}`);
+      } catch (error) {
+        return null;
+      }
+    })
+  );
+  const validRows = rows.filter(Boolean);
 
   if (!validRows.length) {
-    throw new Error("Tokocrypto ticker list returned no rows");
+    throw new Error("Tokocrypto ticker requests returned no rows");
   }
 
   const bySymbol = new Map(validRows.map((item) => [String(item.symbol || "").toUpperCase(), item]));
