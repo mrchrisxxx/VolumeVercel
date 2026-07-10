@@ -1,6 +1,6 @@
 const REKU_MARKET_URL = "https://api.reku.id/v3/market";
 const INDODAX_TICKERS_URL = "https://indodax.com/api/tickers";
-const TOKOCRYPTO_TICKERS_URL = "https://www.tokocrypto.asia/api/v3/ticker/24hr";
+const TOKOCRYPTO_TICKERS_URL = "https://api.binance.com/api/v3/ticker/24hr";
 const TOKOCRYPTO_TRADE_PAGE_URL = "https://www.tokocrypto.asia/en/trade/BTC_IDR";
 const TOKOCRYPTO_PROXY_URL = process.env.TOKOCRYPTO_PROXY_URL || "";
 const CMC_API_KEY = process.env.CMC_API_KEY || "";
@@ -88,9 +88,7 @@ async function getTokocryptoVolumes(assets) {
   let cmcResult = null;
 
   try {
-    primaryResult = TOKOCRYPTO_PROXY_URL
-      ? await getTokocryptoProxyVolumes(assets)
-      : await getTokocryptoDirectVolumes(assets);
+    primaryResult = await getTokocryptoDirectVolumes(assets);
   } catch (error) {
     errors.push({ exchange: "tokocrypto", message: error.message });
   }
@@ -100,14 +98,9 @@ async function getTokocryptoVolumes(assets) {
     (!primaryResult || !Object.values(primaryResult.volumes || {}).some((value) => value != null))
   ) {
     try {
-      const directResult = await getTokocryptoDirectVolumes(assets);
-      primaryResult = {
-        ...directResult,
-        source: `${primaryResult?.source || "tokocrypto-proxy"}+${directResult.source}`,
-        errors: [...(primaryResult?.errors || []), ...(directResult.errors || [])],
-      };
+      primaryResult = await getTokocryptoProxyVolumes(assets);
     } catch (error) {
-      errors.push({ exchange: "tokocrypto-direct", message: error.message });
+      errors.push({ exchange: "tokocrypto-proxy", message: error.message });
     }
   }
 
@@ -151,8 +144,16 @@ async function getTokocryptoVolumes(assets) {
 }
 
 async function getTokocryptoDirectVolumes(assets) {
-  const rows = await fetchWithTimeout(TOKOCRYPTO_TICKERS_URL);
-  const validRows = Array.isArray(rows) ? rows : [];
+  const rows = await Promise.all(
+    assets.map(async (asset) => {
+      try {
+        return await fetchWithTimeout(`${TOKOCRYPTO_TICKERS_URL}?symbol=${encodeURIComponent(`${asset}IDR`)}`);
+      } catch (error) {
+        return null;
+      }
+    })
+  );
+  const validRows = rows.filter(Boolean);
   const bySymbol = new Map(validRows.map((item) => [String(item.symbol || "").toUpperCase(), item]));
   const relevantTickers = assets.map((asset) => bySymbol.get(`${asset}IDR`)).filter(Boolean);
   const latestCloseTime = Math.max(...relevantTickers.map((item) => Number(item.closeTime || 0)));
@@ -179,7 +180,7 @@ async function getTokocryptoDirectVolumes(assets) {
   }
 
   return {
-    source: "tokocrypto-direct",
+    source: "tokocrypto-binance-24hr",
     refreshedAt: latestCloseTime > 0
       ? new Date(latestCloseTime).toISOString()
       : nowIso(),
