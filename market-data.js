@@ -1,7 +1,6 @@
 const REKU_MARKET_URL = "https://api.reku.id/v3/market";
 const INDODAX_TICKERS_URL = "https://indodax.com/api/tickers";
 const TOKOCRYPTO_TICKERS_URL = "https://api.binance.com/api/v3/ticker/24hr";
-const TOKOCRYPTO_TRADE_PAGE_URL = "https://www.tokocrypto.asia/en/trade/BTC_IDR";
 const TOKOCRYPTO_PROXY_URL = process.env.TOKOCRYPTO_PROXY_URL || "";
 const CMC_API_KEY = process.env.CMC_API_KEY || "";
 const CMC_EXCHANGE_SLUGS = (process.env.CMC_EXCHANGE_SLUGS || process.env.CMC_EXCHANGE_SLUG || "tokocrypto,toko-crypto")
@@ -163,20 +162,10 @@ async function getTokocryptoDirectVolumes(assets) {
       return [asset, ticker ? toBillions(ticker.quoteVolume) : null];
     })
   );
-  const missingAssets = assets.filter((asset) => apiVolumes[asset] == null);
-
-  if (missingAssets.length && relevantTickers.length === 0) {
-    const webFallback = await getTokocryptoWebFallbackVolumes(missingAssets);
-
-    for (const asset of missingAssets) {
-      apiVolumes[asset] = webFallback.volumes[asset] ?? apiVolumes[asset];
-    }
-  }
-
   const hasAnyVolume = Object.values(apiVolumes).some((value) => value != null);
 
   if (!hasAnyVolume) {
-    throw new Error("Tokocrypto volume unavailable from ticker API and trade page fallback");
+    throw new Error("Tokocrypto Binance 24hr endpoint returned no matching IDR pairs");
   }
 
   return {
@@ -267,28 +256,6 @@ async function getTokocryptoProxyVolumes(assets) {
   };
 }
 
-async function getTokocryptoWebFallbackVolumes(assets) {
-  const html = await fetchWithTimeout(TOKOCRYPTO_TRADE_PAGE_URL, "text");
-
-  return {
-    refreshedAt: nowIso(),
-    volumes: Object.fromEntries(
-      assets.map((asset) => {
-        const symbol = `${asset}IDR`;
-        const symbolPattern = new RegExp(`"${symbol}"\\s*:\\s*\\{([^{}]+)\\}`);
-        const symbolMatch = html.match(symbolPattern);
-
-        if (!symbolMatch) {
-          return [asset, null];
-        }
-
-        const quoteVolumeMatch = symbolMatch[1].match(/"quoteVolume"\s*:\s*"([^"]+)"/);
-        return [asset, quoteVolumeMatch ? toBillions(quoteVolumeMatch[1]) : null];
-      })
-    ),
-  };
-}
-
 function mergeRows(rekuRows, indodaxVolumes, tokocryptoVolumes) {
   return rekuRows.map(({ rekuRaw, ...row }) => ({
     ...row,
@@ -339,7 +306,7 @@ module.exports = async function handler(request, response) {
     response.status(200).json({
       source: "live",
       rekuSource: rekuResult.source,
-      tokocryptoSource: tokocrypto.source || (TOKOCRYPTO_PROXY_URL ? "tokocrypto-proxy" : "tokocrypto-direct"),
+      tokocryptoSource: tokocrypto.source || null,
       generatedAt: nowIso(),
       lastRefresh: {
         reku: nowIso(),
