@@ -384,7 +384,7 @@ function hasMissingTokocrypto(rows) {
 function mergeTokocryptoFallback(rows, tokocryptoVolumes) {
   return rows.map((row) => ({
     ...row,
-    tokocrypto: tokocryptoVolumes[row.asset] ?? row.tokocrypto,
+    tokocrypto: tokocryptoVolumes[row.asset] != null ? tokocryptoVolumes[row.asset] : row.tokocrypto,
   }));
 }
 
@@ -423,15 +423,15 @@ async function refreshDashboard() {
         elements.lastRefresh.indodax.textContent = formatIsoTime(marketData.lastRefresh?.indodax);
         elements.lastRefresh.tokocrypto.textContent = formatIsoTime(marketData.lastRefresh?.tokocrypto);
 
-        if (hasMissingTokocrypto(currentRows) && !marketData.lastRefresh?.tokocrypto) {
-          setLoading(true, "Trying Tokocrypto browser fallback");
+        setLoading(true, "Refreshing Tokocrypto from browser");
 
-          try {
-            const tokocryptoFallback = await tryBrowserTokocryptoFallback(currentRows);
-            currentRows = tokocryptoFallback.rows;
-            renderTable(currentRows);
-            elements.lastRefresh.tokocrypto.textContent = tokocryptoFallback.refreshedAt;
-          } catch (error) {
+        try {
+          const tokocryptoFallback = await tryBrowserTokocryptoFallback(currentRows);
+          currentRows = tokocryptoFallback.rows;
+          renderTable(currentRows);
+          elements.lastRefresh.tokocrypto.textContent = tokocryptoFallback.refreshedAt;
+        } catch (error) {
+          if (!marketData.lastRefresh?.tokocrypto) {
             elements.lastRefresh.tokocrypto.textContent = "Unavailable";
           }
         }
