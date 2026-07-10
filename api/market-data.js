@@ -10,6 +10,7 @@ const CMC_EXCHANGE_SLUGS = (process.env.CMC_EXCHANGE_SLUGS || process.env.CMC_EX
 const CMC_MARKET_PAIRS_URL = "https://pro-api.coinmarketcap.com/v1/exchange/market-pairs/latest";
 
 const REQUEST_TIMEOUT_MS = 12000;
+const REKU_CANDIDATE_LIMIT = 30;
 
 function toBillions(value) {
   return Number(value || 0) / 1_000_000_000;
@@ -57,9 +58,10 @@ async function getRekuTopRows() {
         logo: item.logo || item.logo_svg || "",
         reku: toBillions(item.v),
         rekuRaw: Number(item.v),
+        isLightningOnly: item.is_lite === true && item.is_pro === false,
       }))
       .sort((a, b) => b.rekuRaw - a.rekuRaw)
-      .slice(0, 10),
+      .slice(0, REKU_CANDIDATE_LIMIT),
   };
 }
 
@@ -75,7 +77,7 @@ async function getIndodaxVolumes(assets) {
     volumes: Object.fromEntries(
       assets.map((asset) => {
         const ticker = tickers[`${asset.toLowerCase()}_idr`];
-        return [asset, toBillions(ticker?.vol_idr)];
+        return [asset, ticker ? toBillions(ticker.vol_idr) : null];
       })
     ),
   };

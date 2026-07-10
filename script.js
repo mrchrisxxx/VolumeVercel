@@ -45,7 +45,13 @@ const elements = {
   },
 };
 
-function calculateAction(indodax, reku, tokocrypto) {
+function calculateAction(row) {
+  if (row.isLightningOnly) {
+    return "Review";
+  }
+
+  const { indodax, reku, tokocrypto } = row;
+
   if (indodax == null || reku == null) {
     return "Review";
   }
@@ -143,7 +149,10 @@ function renderCountdown() {
 }
 
 function getSortedRows(rows) {
-  return [...rows].sort((a, b) => b.reku - a.reku).slice(0, 10);
+  return [...rows]
+    .filter((row) => row.indodax != null || row.tokocrypto != null)
+    .sort((a, b) => b.reku - a.reku)
+    .slice(0, 10);
 }
 
 function renderTable(rows) {
@@ -151,7 +160,7 @@ function renderTable(rows) {
 
   elements.body.innerHTML = sortedRows
     .map((row) => {
-      const action = calculateAction(row.indodax, row.reku, row.tokocrypto);
+      const action = calculateAction(row);
       const badgeClass = `badge-${action.toLowerCase()}`;
 
       return `
@@ -186,7 +195,7 @@ function getAssetMark(row) {
 }
 
 function renderSummary(rows) {
-  const actions = rows.map((row) => calculateAction(row.indodax, row.reku, row.tokocrypto));
+  const actions = rows.map((row) => calculateAction(row));
 
   elements.summary.increase.textContent = `${actions.filter((action) => action === "Increase").length} assets`;
   elements.summary.reduce.textContent = `${actions.filter((action) => action === "Reduce").length} assets`;
@@ -253,7 +262,7 @@ async function getIndodaxVolumes(assets) {
     volumes: Object.fromEntries(
       assets.map((asset) => {
         const ticker = tickers[`${asset.toLowerCase()}_idr`];
-        return [asset, toBillions(ticker?.vol_idr)];
+        return [asset, ticker ? toBillions(ticker.vol_idr) : null];
       })
     ),
   };
@@ -378,8 +387,8 @@ function firstNumber(...values) {
 function mergeRows(rekuRows, indodaxVolumes, tokocryptoVolumes) {
   return rekuRows.map((row) => ({
     ...row,
-    indodax: indodaxVolumes[row.asset] ?? 0,
-    tokocrypto: tokocryptoVolumes[row.asset] ?? 0,
+    indodax: indodaxVolumes[row.asset] ?? null,
+    tokocrypto: tokocryptoVolumes[row.asset] ?? null,
   }));
 }
 
@@ -459,7 +468,13 @@ async function refreshDashboard() {
       // Continue with direct browser fetch fallback for local file previews.
     }
 
-    let rekuRows = getSortedRows(currentRows).map(({ asset, name, reku }) => ({ asset, name, reku }));
+    let rekuRows = getSortedRows(currentRows).map(({ asset, name, logo, reku, isLightningOnly }) => ({
+      asset,
+      name,
+      logo,
+      reku,
+      isLightningOnly,
+    }));
     let rekuWasLive = false;
 
     try {
