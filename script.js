@@ -194,6 +194,12 @@ function renderSummary(rows) {
 }
 
 async function fetchJson(url) {
+  if (url.includes("api.binance.com")) {
+    const response = await fetch(url, { cache: "no-store" });
+    if (!response.ok) throw new Error(`Request failed: ${response.status}`);
+    return response.json();
+  }
+
   const separator = url.includes("?") ? "&" : "?";
   const response = await fetch(`${url}${separator}t=${Date.now()}`, { cache: "no-store" });
   if (!response.ok) throw new Error(`Request failed: ${response.status}`);
