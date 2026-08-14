@@ -193,6 +193,10 @@ h1 {
   overflow: hidden;
 }
 
+.table-card + .table-card {
+  margin-top: 10px;
+}
+
 .table-card__header {
   display: flex;
   justify-content: space-between;
@@ -263,6 +267,12 @@ th {
 
 td {
   color: #e2e6f2;
+}
+
+.empty-state {
+  padding: 22px 18px;
+  color: var(--muted);
+  text-align: center;
 }
 
 tbody tr {

@@ -69,10 +69,10 @@
         </article>
       </section>
 
-      <section class="table-card" aria-labelledby="table-title">
+      <section class="table-card" aria-labelledby="pro-table-title">
         <div class="table-card__header">
           <div>
-            <h2 id="table-title">Trading Volume Comparison</h2>
+            <h2 id="pro-table-title">Pro Market Volume Comparison</h2>
             <p>Sorted by live Reku market volume when available</p>
           </div>
           <button id="manual-refresh" type="button">Refresh Now</button>
@@ -89,7 +89,35 @@
                 <th scope="col">Action</th>
               </tr>
             </thead>
-            <tbody id="volume-table-body"></tbody>
+            <tbody id="pro-volume-table-body"></tbody>
+          </table>
+        </div>
+
+        <footer class="table-note">
+          Values in billion IDR (b). N/A means IDR pair unavailable or blocked.
+        </footer>
+      </section>
+
+      <section class="table-card" aria-labelledby="lite-table-title">
+        <div class="table-card__header">
+          <div>
+            <h2 id="lite-table-title">Lite Market Volume Comparison</h2>
+            <p>Lite-only assets are marked Review because Pro orderbook action is unavailable</p>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Asset</th>
+                <th scope="col">Indodax</th>
+                <th scope="col">Reku</th>
+                <th scope="col">Tokocrypto</th>
+                <th scope="col">Action</th>
+              </tr>
+            </thead>
+            <tbody id="lite-volume-table-body"></tbody>
           </table>
         </div>
 

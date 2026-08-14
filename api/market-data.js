@@ -10,7 +10,7 @@ const CMC_EXCHANGE_SLUGS = (process.env.CMC_EXCHANGE_SLUGS || process.env.CMC_EX
 const CMC_MARKET_PAIRS_URL = "https://pro-api.coinmarketcap.com/v1/exchange/market-pairs/latest";
 
 const REQUEST_TIMEOUT_MS = 12000;
-const REKU_CANDIDATE_LIMIT = 30;
+const REKU_MARKET_LIMIT = 20;
 
 function toBillions(value) {
   return Number(value || 0) / 1_000_000_000;
@@ -50,7 +50,8 @@ async function getRekuTopRows() {
 
   return {
     source: "reku-v3-market",
-    rows: rows
+    rows: splitRekuMarkets(
+      rows
       .filter((item) => item?.cd && Number(item?.v) > 0)
       .map((item) => ({
         asset: item.cd,
@@ -60,9 +61,22 @@ async function getRekuTopRows() {
         rekuRaw: Number(item.v),
         isLightningOnly: item.is_lite === true && item.is_pro === false,
       }))
-      .sort((a, b) => b.rekuRaw - a.rekuRaw)
-      .slice(0, REKU_CANDIDATE_LIMIT),
+    ),
   };
+}
+
+function splitRekuMarkets(rows) {
+  const sortByVolume = (a, b) => b.rekuRaw - a.rekuRaw;
+  const proRows = rows
+    .filter((row) => !row.isLightningOnly)
+    .sort(sortByVolume)
+    .slice(0, REKU_MARKET_LIMIT);
+  const liteRows = rows
+    .filter((row) => row.isLightningOnly)
+    .sort(sortByVolume)
+    .slice(0, REKU_MARKET_LIMIT);
+
+  return [...proRows, ...liteRows];
 }
 
 async function getIndodaxVolumes(assets) {

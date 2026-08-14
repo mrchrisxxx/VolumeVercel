@@ -26,7 +26,8 @@ let countdown = REFRESH_INTERVAL_SECONDS;
 let refreshTimerId = null;
 
 const elements = {
-  body: document.querySelector("#volume-table-body"),
+  proBody: document.querySelector("#pro-volume-table-body"),
+  liteBody: document.querySelector("#lite-volume-table-body"),
   countdown: document.querySelector("#countdown"),
   ring: document.querySelector("#ring-progress"),
   status: document.querySelector("#refresh-status"),
@@ -155,10 +156,28 @@ function getSortedRows(rows) {
     .slice(0, 10);
 }
 
-function renderTable(rows) {
-  const sortedRows = getSortedRows(rows);
+function getRowsByMarket(rows, isLightningOnly) {
+  return getSortedRows(rows.filter((row) => Boolean(row.isLightningOnly) === isLightningOnly));
+}
 
-  elements.body.innerHTML = sortedRows
+function renderTable(rows) {
+  const proRows = getRowsByMarket(rows, false);
+  const liteRows = getRowsByMarket(rows, true);
+
+  elements.proBody.innerHTML = renderRows(proRows, "No Pro assets available");
+  elements.liteBody.innerHTML = renderRows(liteRows, "No Lite assets available");
+
+  animateTable(elements.proBody);
+  animateTable(elements.liteBody);
+  renderSummary([...proRows, ...liteRows]);
+}
+
+function renderRows(rows, emptyMessage) {
+  if (!rows.length) {
+    return `<tr><td class="empty-state" colspan="5">${emptyMessage}</td></tr>`;
+  }
+
+  return rows
     .map((row) => {
       const action = calculateAction(row);
       const badgeClass = `badge-${action.toLowerCase()}`;
@@ -179,11 +198,12 @@ function renderTable(rows) {
       `;
     })
     .join("");
+}
 
-  elements.body.classList.remove("fade-refresh");
-  void elements.body.offsetWidth;
-  elements.body.classList.add("fade-refresh");
-  renderSummary(sortedRows);
+function animateTable(body) {
+  body.classList.remove("fade-refresh");
+  void body.offsetWidth;
+  body.classList.add("fade-refresh");
 }
 
 function getAssetMark(row) {
